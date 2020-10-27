@@ -154,27 +154,13 @@ int main()
 	if (ret != SUCCESS)
 		return ret;
 
-	ret = ad469x_std_seq_osr(dev, AD469x_OSR_4);
-	if (ret != SUCCESS)
-		return ret;
-
 	ret = ad469x_enter_conversion_mode(dev);
 	if (ret != SUCCESS)
 		return ret;
 
-//	while (1) {
-//		ret = ad469x_seq_read_data(dev, &buf[0], AD469x_EVB_SAMPLE_NO);
-//		if (ret != SUCCESS)
-//			return ret;
-//
-//		for (i = 0; i < AD469x_EVB_SAMPLE_NO; i += 2)
-//			printf("ADC sample: %"PRIu32", ch0: %"PRIu32", ch1: %"PRIu32" \n", i, buf[i],
-//			       buf[i + 1]);
-//	}
-
 	struct iio_buffer_init_param iio_buffer_init_par = {
 		.num_channels = 2,
-		.ddr_base = (uint32_t)buf,
+		.ddr_base = ADC_DDR_BASEADDR,
 		.dev_instance = dev,
 		.read_data = (int32_t (*)(void *, uint32_t *, uint16_t))ad469x_seq_read_data,
 	};

@@ -51,10 +51,6 @@
 #include "util.h"
 
 /******************************************************************************/
-/*************************** Types Declarations *******************************/
-/******************************************************************************/
-
-/******************************************************************************/
 /************************ Functions Definitions *******************************/
 /******************************************************************************/
 
@@ -72,13 +68,16 @@ static ssize_t iio_buffer_transfer_dev_to_mem(void *iio_inst,
 	struct iio_buffer_desc *iio_buffer_desc;
 	uint16_t num_ch;
 	uint16_t samples;
+	uint8_t sample_bytes;
 
 	if (!iio_inst)
 		return FAILURE;
 
 	iio_buffer_desc = (struct iio_buffer_desc*)iio_inst;
 	num_ch = iio_buffer_desc->dev_descriptor.num_ch;
-	samples = (bytes_count * num_ch) / (hweight8(ch_mask) * 2);
+	sample_bytes = iio_buffer_desc->dev_descriptor.channels[find_first_set_bit(ch_mask)]->scan_type->storagebits / 8;
+	samples = (bytes_count * num_ch) / (hweight8(ch_mask) * sample_bytes);
+
 	return iio_buffer_desc->read_data(iio_buffer_desc->dev_instance,
 					  (uint32_t *)iio_buffer_desc->ddr_base,
 					  samples);
@@ -102,8 +101,9 @@ static ssize_t iio_buffer_read_dev(void *iio_inst, char *pbuf, size_t offset,
 {
 	struct iio_buffer_desc *iio_buffer_desc;
 	uint32_t i, j = 0, current_ch = 0;
-	uint16_t *pbuf16, num_ch;
-	size_t samples;
+	uint16_t samples, num_ch;
+	uint8_t sample_bytes;
+	uint8_t *pmem;
 
 	if (!iio_inst)
 		return FAILURE;
@@ -113,18 +113,14 @@ static ssize_t iio_buffer_read_dev(void *iio_inst, char *pbuf, size_t offset,
 
 	iio_buffer_desc = (struct iio_buffer_desc*)iio_inst;
 	num_ch = iio_buffer_desc->dev_descriptor.num_ch;
-
-	pbuf16 = (uint16_t*)pbuf;
-	samples = (bytes_count * num_ch) / hweight8(
-			  ch_mask);
-	samples /= 2; /* because of uint16_t *pbuf16 = (uint16_t*)pbuf; */
-	offset = (offset * num_ch) / hweight8(ch_mask);
+	sample_bytes = iio_buffer_desc->dev_descriptor.channels[find_first_set_bit(ch_mask)]->scan_type->storagebits / 8;
+	samples = (bytes_count * num_ch) / (hweight8(ch_mask) * sample_bytes);
+	pmem = (uint8_t*)iio_buffer_desc->ddr_base + (offset * (1 + num_ch - hweight8(ch_mask)));
 
 	for (i = 0; i < samples; i++) {
 
 		if (ch_mask & BIT(current_ch)) {
-			pbuf16[j] = *(uint16_t*)(iio_buffer_desc->ddr_base + offset + i * 2);
-//			pbuf16[j] = i;
+			memcpy(pbuf + (j * sample_bytes), pmem + (i * sample_bytes), sample_bytes);
 			j++;
 		}
 
@@ -174,9 +170,9 @@ static int32_t iio_buffer_create_device_descriptor(
 		uint8_t	num_channels, struct iio_device *iio_device)
 {
 	static struct scan_type scan_type = {
-		.sign = 's',
-		.realbits = 16,
-		.storagebits = 16,
+		.sign = 'u',
+		.realbits = 19,
+		.storagebits = 32,
 		.shift = 0,
 		.is_big_endian = false
 	};
